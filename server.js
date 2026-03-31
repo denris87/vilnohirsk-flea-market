@@ -5,13 +5,18 @@ const papa = require('papaparse');
 const app = express();
 app.use(cors());
 
-// ВСТАВ СЮДИ СВОЄ CSV-ПОСИЛАННЯ З GOOGLE ТАБЛИЦІ
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/10MgSaPFFh0mDE094UkrG1BQwHabmGvSg124F5B4T1lg/edit?usp=sharing';
+// Спеціальне посилання на твою таблицю для прямого скачування у форматі CSV
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/10MgSaPFFh0mDE094UkrG1BQwHabmGvSg124F5B4T1lg/export?format=csv';
 
 app.get('/api/flea', async (req, res) => {
   try {
     const fetch = (await import('node-fetch')).default;
     const response = await fetch(CSV_URL);
+    
+    if (!response.ok) {
+        throw new Error('Не вдалося завантажити таблицю. Перевір, чи відкритий доступ "Усі, хто має посилання".');
+    }
+    
     const csvText = await response.text();
 
     papa.parse(csvText, {
@@ -19,16 +24,13 @@ app.get('/api/flea', async (req, res) => {
       skipEmptyLines: true,
       complete: (results) => {
         const approvedItems = results.data
-          // Шукаємо колонку "Статус", де написано "Одобрено"
           .filter(row => row['Статус'] && row['Статус'].trim().toLowerCase() === 'одобрено')
           .map((row, index) => {
              
-             // Обробка фото (якщо їх кілька, беремо перше)
              let rawPhoto = row['Фото (Тип запитання: Завантаження файлу)'] || '';
              let firstPhoto = rawPhoto.split(',')[0].trim();
              let photoUrl = firstPhoto;
              
-             // Перетворюємо лінк Google Drive для відображення картинки
              if (photoUrl.includes('open?id=')) {
                  photoUrl = photoUrl.replace('open?id=', 'uc?export=view&id=');
              } else if (photoUrl.includes('file/d/')) {
@@ -38,7 +40,6 @@ app.get('/api/flea', async (req, res) => {
                  }
              }
 
-             // Беремо дані з колонок (точні назви зі скріншоту)
              return {
                id: 'flea-' + index,
                title: row['Назва товару (Коротка відповідь)'] || 'Без назви',
